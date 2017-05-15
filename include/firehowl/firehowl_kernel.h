@@ -15,7 +15,7 @@ struct Matrix {
     int h, w;
     T *ptr;
     __device__ __host__ Matrix(T *ptr) : ptr(ptr), h(height), w(width) {}
-    Matrix() = delete;
+    __device__ __host__ Matrix() : ptr(nullptr), h(height), w(width) {}
     __device__ __host__ inline T& operator[](int idx) {
         return ptr[idx];
     }
@@ -31,6 +31,42 @@ struct Matrix {
     __device__ __host__ ~Matrix() {}
 };
 
+template<typename T, int height, int width>
+struct Tensor {
+private:
+    Matrix<T, height, width> hMat;
+    Matrix<T, height, width> dMat;
+    int h, w;
+public:
+    Tensor() : h(height), w(width) { 
+        hipHostMalloc(&hMat.ptr, height*width*sizeof(T), 0);
+        hipMalloc(&dMat.ptr, height*width*sizeof(T));
+    }
+    void SyncHost(hipStream_t stream) {
+        hipMemcpyAsync(hMat.ptr, dMat.ptr, height*width*sizeof(T), hipMemcpyDeviceToHost, stream);
+    }
+    void SyncDevice(hipStream_t stream) {
+        hipMemcpyAsync(dMat.ptr, hMat.ptr, height*width*sizeof(T), hipMemcpyHostToDevice, stream);
+    }
+    inline T& operator[](int idx) {
+        return hMat.ptr[idx];
+    }
+    inline const T& operator[](int idx) const {
+        return hMat.ptr[idx];
+    }
+    inline T& operator()(int y, int x) {
+        return hMat.ptr[x + y * width];
+    }
+    inline const T& operator()(int y, int x) const {
+        return hMat.ptr[x + y * width];
+    }
+    inline T* getDPtr() { return dMat.ptr; }
+    inline T* getHPtr() { return hMat.ptr; }
+    ~Tensor() {
+        hipHostFree(hMat.ptr);
+        hipFree(dMat.ptr);
+    }
+};
 
 template<typename T, int w_height, int w_width, int x_height, int x_width>
 __global__ void FireHowlDot(

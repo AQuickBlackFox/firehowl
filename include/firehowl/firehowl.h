@@ -10,35 +10,35 @@ namespace firehowl {
 
 template<typename T, int w_height, int w_width, int x_height, int x_width>
 void MatMul(hipStream_t stream,
-                Matrix<T, w_height, x_width> &Y, 
-                Matrix<T, w_height, w_width> &W,
-                Matrix<T, x_height, x_width> &X)
+                Tensor<T, w_height, x_width> &Y, 
+                Tensor<T, w_height, w_width> &W,
+                Tensor<T, x_height, x_width> &X)
 {
     dim3 dimGrid(x_width/FH_TILE_X, w_height/FH_TILE_X);
     dim3 dimBlock(FH_TILE_X, FH_TILE_Y);
-    hipLaunchKernelGGL((FireHowlDot<T, w_height, w_width, x_height, x_width>), dimGrid, dimBlock, 0, stream, Y, W, X);
+    hipLaunchKernelGGL((FireHowlDot<T, w_height, w_width, x_height, x_width>), dimGrid, dimBlock, 0, stream, Y.getDPtr(), W.getDPtr(), X.getDPtr());
 }
 
 template<typename T, int w_height, int w_width, int x_height, int x_width>
 void MatMul(hipStream_t stream,
-                Matrix<T, w_height, x_width> &Y, 
-                Matrix<T, w_height, w_width> &W,
-                Matrix<T, x_height, x_width> &X,
-                Matrix<T, w_height, x_width> &B)
+                Tensor<T, w_height, x_width> &Y, 
+                Tensor<T, w_height, w_width> &W,
+                Tensor<T, x_height, x_width> &X,
+                Tensor<T, w_height, x_width> &B)
 {
     dim3 dimGrid(x_width/FH_TILE_X, w_height/FH_TILE_X);
     dim3 dimBlock(FH_TILE_X, FH_TILE_Y);
-    hipLaunchKernelGGL((FireHowlDotBias<T, w_height, w_width, x_height, x_width>), dimGrid, dimBlock, 0, stream, Y, W, X, B);
+    hipLaunchKernelGGL((FireHowlDotBias<T, w_height, w_width, x_height, x_width>), dimGrid, dimBlock, 0, stream, Y.getDPtr(), W.getDPtr(), X.getDPtr(), B.dMat);
 }
 
 template<typename T, int height, int width>
 void Tanh(hipStream_t stream,
-            Matrix<T, height, width> &Y,
-            Matrix<T, height, width> &X)
+            Tensor<T, height, width> &Y,
+            Tensor<T, height, width> &X)
 {
     dim3 dimGrid((width * height)/(FH_TILE_X * FH_TILE_X));
     dim3 dimBlock(FH_TILE_X * FH_TILE_Y);
-    hipLaunchKernelGGL((FireHowlTanh<T, height, width>), dimGrid, dimBlock, 0, stream, Y, X);
+    hipLaunchKernelGGL((FireHowlTanh<T, height, width>), dimGrid, dimBlock, 0, stream, Y.getDPtr(), X.getDPtr());
 
 }
 
