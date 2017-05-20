@@ -14,19 +14,35 @@ int main(){
     Tensor<float, X1_HEIGHT, X1_WIDTH> X1;
     Tensor<float, Y1_HEIGHT, Y1_WIDTH> Y1;
 
-    W1[0] = 1.0f;
-    X1[0] = 1.0f;
-    Y1[0] = 1.0f;
+    for(int j=0;j<W1_HEIGHT;j++) {
+        for(int i=0;i<W1_WIDTH;i++) {
+            W1(j, i) = 1.0f;
+        }
+    }
+
+    for(int j=0;j<X1_HEIGHT;j++) {
+        for(int i=0;i<X1_WIDTH;i++) {
+            X1(j, i) = 1.0f;
+        }
+    }
+
+    for(int j=0;j<Y1_HEIGHT;j++) {
+        for(int i=0;i<Y1_WIDTH;i++) {
+            Y1(j, i) = 0.0f;
+        }
+    }
+
+
 
     std::cout<<W1[0]<<" "<<X1[0]<<" "<<Y1[0]<<std::endl;
+/*
     hipStream_t stream;
     hipStreamCreate(&stream);
     W1.SyncDevice(stream);
+    X1.SyncDevice(stream);
+    Y1.SyncDevice(stream);
+*/
+    MatMul<float, W1_HEIGHT, W1_WIDTH, X1_HEIGHT, X1_WIDTH>(Y1, W1, X1);
     hipDeviceSynchronize();
-    W1[0] = 2.0f;
-    W1.SyncHost(stream);
-    hipDeviceSynchronize();
-    std::cout<<W1[0]<<std::endl;
-    MatMul<float, W1_HEIGHT, W1_WIDTH, X1_HEIGHT, X1_WIDTH>(stream, Y1, W1, X1);
-    hipDeviceSynchronize();
+    std::cout<<Y1[0]<<std::endl;
 }

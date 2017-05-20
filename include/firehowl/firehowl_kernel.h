@@ -1,8 +1,13 @@
 #pragma once
 
-#include<hip/hip_runtime.h>
-#include<hip/hip_runtime_api.h>
-#include<iostream>
+#include "firehowl_rt.h"
+
+#define CHECK_HOST(stream) if(devSync == 1) { SyncHost(stream); devSync = 0; hostSync = 1; }
+#define CHECK_DEVICE(stream) if(hostSync == 1) { SyncDevice(stream); devSync = 1; hostSync = 0; }
+
+#define CHECK_HSYNC(stream) if(devSync == 1) { SyncHost(stream); hipDeviceSynchronize(); devSync = 0; hostSync = 1; }
+#define CHECK_DSYNC(stream) if(hostSync == 1) { SyncDevice(stream); hipDeviceSynchronize(); devSync = 1; hostSync = 0; }
+
 
 #undef hipLaunchKernel 
 #define hipLaunchKernel hipLaunchKernelGGL
@@ -37,34 +42,49 @@ private:
     Matrix<T, height, width> hMat;
     Matrix<T, height, width> dMat;
     int h, w;
+    int devSync, hostSync;
 public:
-    Tensor() : h(height), w(width) { 
-        hipHostMalloc(&hMat.ptr, height*width*sizeof(T), 0);
-        hipMalloc(&dMat.ptr, height*width*sizeof(T));
+    Tensor() : h(height), w(width), devSync(0), hostSync(1) { 
+        FH_HIP_CHECK(hipHostMalloc(&hMat.ptr, height*width*sizeof(T), 0));
+        FH_HIP_CHECK(hipMalloc(&dMat.ptr, height*width*sizeof(T)));
     }
     void SyncHost(hipStream_t stream) {
-        hipMemcpyAsync(hMat.ptr, dMat.ptr, height*width*sizeof(T), hipMemcpyDeviceToHost, stream);
+        FH_FUNC_NAME();
+        FH_HIP_CHECK(hipMemcpyAsync(hMat.ptr, dMat.ptr, height*width*sizeof(T), hipMemcpyDeviceToHost, stream));
     }
     void SyncDevice(hipStream_t stream) {
-        hipMemcpyAsync(dMat.ptr, hMat.ptr, height*width*sizeof(T), hipMemcpyHostToDevice, stream);
+        FH_FUNC_NAME();
+        FH_HIP_CHECK(hipMemcpyAsync(dMat.ptr, hMat.ptr, height*width*sizeof(T), hipMemcpyHostToDevice, stream));
+    }
+    void CheckSyncHost(hipStream_t stream) {
+        FH_FUNC_NAME();
+        CHECK_HOST(stream);
+    }
+    void CheckSyncDevice(hipStream_t stream) {
+        FH_FUNC_NAME();
+        CHECK_DEVICE(stream);
     }
     inline T& operator[](int idx) {
+        CHECK_HSYNC(init.getStream());
         return hMat.ptr[idx];
     }
     inline const T& operator[](int idx) const {
+        CHECK_HSYNC(init.getStream());
         return hMat.ptr[idx];
     }
     inline T& operator()(int y, int x) {
+        CHECK_HSYNC(init.getStream());
         return hMat.ptr[x + y * width];
     }
     inline const T& operator()(int y, int x) const {
+        CHECK_HSYNC(init.getStream());
         return hMat.ptr[x + y * width];
     }
     inline T* getDPtr() { return dMat.ptr; }
     inline T* getHPtr() { return hMat.ptr; }
     ~Tensor() {
-        hipHostFree(hMat.ptr);
-        hipFree(dMat.ptr);
+        FH_HIP_CHECK(hipHostFree(hMat.ptr));
+        FH_HIP_CHECK(hipFree(dMat.ptr));
     }
 };
 
