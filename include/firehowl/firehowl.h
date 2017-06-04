@@ -10,13 +10,12 @@ void MatMul(Tensor<T, w_height, x_width> &Y,
                 Tensor<T, w_height, w_width> &W,
                 Tensor<T, x_height, x_width> &X)
 {
-    FH_FUNC_NAME();
     hipStream_t stream = init.getStream();
     Y.CheckSyncDevice(stream);
     W.CheckSyncDevice(stream);
     X.CheckSyncDevice(stream);
-    dim3 dimGrid(x_width/FH_TILE_X, w_height/FH_TILE_X);
-    dim3 dimBlock(FH_TILE_X, FH_TILE_Y);
+    dim3 dimGrid(x_width/FH_TILE_X_16, w_height/FH_TILE_Y_16);
+    dim3 dimBlock(FH_TILE_X_16, FH_TILE_Y_16);
     hipLaunchKernelGGL((FireHowlDot<T, w_height, w_width, x_height, x_width>), dimGrid, dimBlock, 0, stream, Y.getDPtr(), W.getDPtr(), X.getDPtr());
 }
 
@@ -26,14 +25,13 @@ void MatMul(Tensor<T, w_height, x_width> &Y,
                 Tensor<T, x_height, x_width> &X,
                 Tensor<T, w_height, x_width> &B)
 {
-    FH_FUNC_NAME();
     hipStream_t stream = init.getStream();
     Y.CheckSyncDevice(stream);
     W.CheckSyncDevice(stream);
     X.CheckSyncDevice(stream);
     B.CheckSyncDevice(stream);
-    dim3 dimGrid(x_width/FH_TILE_X, w_height/FH_TILE_X);
-    dim3 dimBlock(FH_TILE_X, FH_TILE_Y);
+    dim3 dimGrid(x_width/FH_TILE_X_16, w_height/FH_TILE_Y_16);
+    dim3 dimBlock(FH_TILE_X_16, FH_TILE_Y_16);
     hipLaunchKernelGGL((FireHowlDotBias<T, w_height, w_width, x_height, x_width>), dimGrid, dimBlock, 0, stream, Y.getDPtr(), W.getDPtr(), X.getDPtr(), B.dMat);
 }
 
@@ -41,12 +39,11 @@ template<typename T, int height, int width>
 void Tanh(Tensor<T, height, width> &Y,
             Tensor<T, height, width> &X)
 {
-    FH_FUNC_NAME();
     hipStream_t stream = init.getStream();
     Y.CheckSyncDevice(stream);
     X.CheckSyncDevice(stream);
-    dim3 dimGrid((width * height)/(FH_TILE_X * FH_TILE_X));
-    dim3 dimBlock(FH_TILE_X * FH_TILE_Y);
+    dim3 dimGrid((width * height)/(FH_TILE_X_16 * FH_TILE_X_16));
+    dim3 dimBlock(FH_TILE_X_16 * FH_TILE_Y_16);
     hipLaunchKernelGGL((FireHowlTanh<T, height, width>), dimGrid, dimBlock, 0, stream, Y.getDPtr(), X.getDPtr());
 
 }

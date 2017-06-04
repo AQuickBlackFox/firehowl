@@ -1,19 +1,16 @@
 #pragma once
 
 #include "firehowl_rt.h"
-
-#define CHECK_HOST(stream) if(devSync == 1) { SyncHost(stream); devSync = 0; hostSync = 1; }
-#define CHECK_DEVICE(stream) if(hostSync == 1) { SyncDevice(stream); devSync = 1; hostSync = 0; }
-
-#define CHECK_HSYNC(stream) if(devSync == 1) { SyncHost(stream); hipDeviceSynchronize(); devSync = 0; hostSync = 1; }
-#define CHECK_DSYNC(stream) if(hostSync == 1) { SyncDevice(stream); hipDeviceSynchronize(); devSync = 1; hostSync = 0; }
-
+#include "firehowl_math.h"
 
 #undef hipLaunchKernel 
 #define hipLaunchKernel hipLaunchKernelGGL
 
-#define FH_TILE_X 16
-#define FH_TILE_Y 16
+#define FH_TILE_X_16 16
+#define FH_TILE_Y_16 16
+
+#define FH_TILE_X_32 32
+#define FH_TILE_Y_32 32
 
 template<typename T, int height, int width>
 struct Matrix {
@@ -49,19 +46,15 @@ public:
         FH_HIP_CHECK(hipMalloc(&dMat.ptr, height*width*sizeof(T)));
     }
     void SyncHost(hipStream_t stream) {
-        FH_FUNC_NAME();
         FH_HIP_CHECK(hipMemcpyAsync(hMat.ptr, dMat.ptr, height*width*sizeof(T), hipMemcpyDeviceToHost, stream));
     }
     void SyncDevice(hipStream_t stream) {
-        FH_FUNC_NAME();
         FH_HIP_CHECK(hipMemcpyAsync(dMat.ptr, hMat.ptr, height*width*sizeof(T), hipMemcpyHostToDevice, stream));
     }
     void CheckSyncHost(hipStream_t stream) {
-        FH_FUNC_NAME();
         CHECK_HOST(stream);
     }
     void CheckSyncDevice(hipStream_t stream) {
-        FH_FUNC_NAME();
         CHECK_DEVICE(stream);
     }
     inline T& operator[](int idx) {
@@ -100,18 +93,18 @@ __global__ void FireHowlDot(
     int bx = hipBlockIdx_x;
     int by = hipBlockIdx_y;
 
-    int row = ty + by * FH_TILE_X;
-    int col = tx + bx * FH_TILE_X;
+    int row = ty + by * FH_TILE_X_16;
+    int col = tx + bx * FH_TILE_X_16;
 
-    __shared__ T sW[FH_TILE_Y][FH_TILE_X];
-    __shared__ T sX[FH_TILE_Y][FH_TILE_X];
+    __shared__ T sW[FH_TILE_Y_16][FH_TILE_X_16];
+    __shared__ T sX[FH_TILE_Y_16][FH_TILE_X_16];
     T C = 0;
 
-    for (int j = 0; j < w_width / FH_TILE_Y; j++) {
-        sW[ty][tx] = W[row*w_width + (j*FH_TILE_X + tx)];
-        sX[ty][tx] = X[col + (j*FH_TILE_X+ty)*x_width];
+    for (int j = 0; j < w_width / FH_TILE_Y_16; j++) {
+        sW[ty][tx] = W[row*w_width + (j*FH_TILE_X_16 + tx)];
+        sX[ty][tx] = X[col + (j*FH_TILE_X_16+ty)*x_width];
         __syncthreads();
-        for (int i = 0; i < FH_TILE_Y; i++) {
+        for (int i = 0; i < FH_TILE_Y_16; i++) {
             C = C + sW[ty][i] * sX[i][tx];
         }
         __syncthreads();
@@ -132,18 +125,18 @@ __global__ void FireHowlDotBias(
     int bx = hipBlockIdx_x;
     int by = hipBlockIdx_y;
 
-    int row = ty + by * FH_TILE_X;
-    int col = tx + bx * FH_TILE_X;
+    int row = ty + by * FH_TILE_X_16;
+    int col = tx + bx * FH_TILE_X_16;
 
-    __shared__ T sW[FH_TILE_Y][FH_TILE_X];
-    __shared__ T sX[FH_TILE_Y][FH_TILE_X];
+    __shared__ T sW[FH_TILE_Y_16][FH_TILE_X_16];
+    __shared__ T sX[FH_TILE_Y_16][FH_TILE_X_16];
     T c = 0;
 
-    for (int j = 0; j < w_width / FH_TILE_Y; j++) {
-        sW[ty][tx] = W[row*w_width + (j*FH_TILE_X + tx)];
-        sX[ty][tx] = X[col + (j*FH_TILE_X+ty)*x_width];
+    for (int j = 0; j < w_width / FH_TILE_Y_16; j++) {
+        sW[ty][tx] = W[row*w_width + (j*FH_TILE_X_16 + tx)];
+        sX[ty][tx] = X[col + (j*FH_TILE_X_16+ty)*x_width];
         __syncthreads();
-        for (int i = 0; i < FH_TILE_Y; i++) {
+        for (int i = 0; i < FH_TILE_Y_16; i++) {
             c = c + sW[ty][i] * sX[i][tx];
         }
         T b = B[row*x_width+col];
@@ -159,8 +152,8 @@ __global__ void FireHowlTanh(
 {
     int tx = hipThreadIdx_x;
     int bx = hipBlockIdx_x;
-    int id = tx + bx * FH_TILE_X * FH_TILE_Y;
-    T x = 2 * X[id];
+    int id = tx + bx * FH_TILE_X_16 * FH_TILE_Y_16;
+    T x = __fh_exp(2 * X[id]);
     x = (x - 1)/(x + 1);
     Y[id] = x;
 }
